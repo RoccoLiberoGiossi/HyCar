@@ -1,0 +1,27 @@
+# ==========================================
+# Python Bytecode & Cache (Never commit these)
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# ==========================================
+# Data, Assets & Media Output
+# ==========================================
+# Ignore all zipped compressed archives
+*.zip
+
+# ==========================================
+# Selected Directories (Local Logs & Environment Configs)
+# ==========================================
+# Ignore your local training results and checkpoints
+ppo_logs/
+ppo_hycar_tensorboard/
+
+# ==========================================
+# System & IDE Files
+# ==========================================
+.DS_Store
+.vscode/
+.idea/
