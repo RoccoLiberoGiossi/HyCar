@@ -10,6 +10,17 @@ class Vehicle:
         self.crr = crr
         self.rho_air = 1.225
 
+    def update_mass(self, vehicle_mass: float, total_fuel_on_start: float, fuel_used: float):
+        """
+        update vehicle mass based on fuel used. This is called after the ICE step.
+        All masses must be provided in kg.
+        Args:
+            vehicle_mass (float): The base mass of the vehicle without fuel (kg).
+            total_fuel_on_start (float): The total mass of fuel at the start of the episode (kg).
+            fuel_used (float): The mass of fuel used so far in the episode (kg).
+        """
+        self.mass_kg = vehicle_mass + total_fuel_on_start - fuel_used
+
     def road_load_kw(self, speed_kmh: float, accel_mps2: float,
                      grade_deg: float = 0.0) -> float:
         v = speed_kmh / 3.6

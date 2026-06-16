@@ -44,6 +44,17 @@ class HybridVehicleEnv(gym.Env):
         # System definition
         # --------------------------------------------------------------- #
 
+        # is done flag for episode termination
+        self.done = False
+
+        self.last_printed_milestone = 0
+
+        # critical conditions for episode termination
+        self.max_gas_g = (
+            MAX_GAS_L * InternalCombustionEngine.FUEL_DENSITY_KG_PER_L * 1000
+        )
+        self.min_soc = MIN_ELECTRIC_SOC
+
         # Instantiate components
         self.battery, self.ice, self.motor, self.inverter, self.vehicle, self.cycle = (
             self.initialize_components()
@@ -63,17 +74,6 @@ class HybridVehicleEnv(gym.Env):
         self.ice_on_seconds = 0
         self.t = 0
 
-        # is done flag for episode termination
-        self.done = False
-
-        self.last_printed_milestone = 0
-
-        # critical conditions for episode termination
-        self.max_gas_g = (
-            MAX_GAS_L * InternalCombustionEngine.FUEL_DENSITY_KG_PER_L * 1000
-        )
-        self.min_soc = MIN_ELECTRIC_SOC
-
         # Telemetry lists (downsampled)
         self.telemetry = {
             "time_h": [],
@@ -90,6 +90,7 @@ class HybridVehicleEnv(gym.Env):
             "bat_heat_w": [],
             "env": [],
             "reward": [],
+            "vehicle mass_kg": [],
         }
 
         self.reset()
@@ -121,7 +122,7 @@ class HybridVehicleEnv(gym.Env):
         )
 
         vehicle = Vehicle(
-            mass_kg=VEHICLE_MASS_KG,
+            mass_kg=VEHICLE_MASS_KG + self.max_gas_g / 1000.0,
             cd=DRAG_COEFFICIENT,
             frontal_area_m2=FRONTAL_AREA_M2,
             crr=ROLLING_RESISTANCE,
@@ -185,22 +186,6 @@ class HybridVehicleEnv(gym.Env):
 
         return reward
 
-    # TRY LATER
-    # def _calculate_reward(self):
-    #     # Incremental progress (small, roughly constant per second of driving)
-    #     distance_step_km = (self.speed_kmh / 3.6) * DT_S / 1000.0
-    #     reward = 5.0 * distance_step_km
-
-    #     # Fuel cost — direct penalty every gram burned
-    #     reward -= 0.002 * self._last_fuel_burned_g
-
-    #     # SoC management — penalize the danger zone, scaled so it dominates
-    #     # locally near depletion but doesn't swamp the progress term elsewhere
-    #     if self.soc < 0.20:
-    #         reward -= 2.0 * (0.20 - self.soc)
-
-    #     return reward
-
     def _check_done(self):
         # if self.gas_liters >= MAX_GAS_L and self.soc <= self.min_soc:
         #     return True
@@ -235,12 +220,6 @@ class HybridVehicleEnv(gym.Env):
         inv_result = self.inverter.process(motor_elec_kw)
         dc_bus_demand_kw = inv_result["dc_bus_kw"]
 
-        # # RL action on ICE: 0 = off, 1 = on to recharge battery
-        # if action == 0:
-        #     self.ice.stop()
-        # elif action == 1 and self.gas_liters < MAX_GAS_L:
-        #     self.ice.start()
-
         # RL action on ICE
         if action == 1 and self.gas_liters < MAX_GAS_L:
             self.ice.start()
@@ -258,6 +237,7 @@ class HybridVehicleEnv(gym.Env):
             ice_result = {"power_kw": 0.0, "fuel_burned_g": 0.0, "efficiency": 0.0}
 
         self.total_fuel_g += ice_result["fuel_burned_g"]
+        self.vehicle.update_mass(VEHICLE_MASS_KG, self.max_gas_g / 1000.0, self.total_fuel_g / 1000.0)
 
         # 7. Net power on DC bus → battery
         #    Positive net = battery discharging; negative net = battery charging
@@ -287,6 +267,7 @@ class HybridVehicleEnv(gym.Env):
             self.telemetry["bat_heat_w"].append(bat_result["heat_loss_w"])
             self.telemetry["env"].append(self.cycle.current_env)
             self.telemetry["reward"].append(reward)
+            self.telemetry["vehicle mass_kg"].append(self.vehicle.mass_kg)
 
         # Calculate what the current milestone bracket is
         current_milestone = int(self.total_distance_km // 100) * 100
@@ -442,11 +423,6 @@ class HybridVehicleEnv(gym.Env):
             ax.scatter(dist[mask_ice], ice_eff[mask_ice]*100,
                     s=1.0, c='#b91c1c', alpha=0.40, rasterized=True,
                     label='ICE η (active)')
-            # if mask_ice.sum() > 30:
-            #     w = min(40, mask_ice.sum() // 2)
-            #     rm = np.convolve(ice_eff[mask_ice]*100, np.ones(w)/w, mode='valid')
-            #     rd = dist[mask_ice][w//2 : w//2 + len(rm)]
-            #     ax.plot(rd, rm, color='#7f1d1d', lw=1.4, label=f'{w}-pt rolling mean')
             ax.legend(fontsize=7.5, loc='lower right', framealpha=0.85)
         else:
             ax.text(0.5, 0.5, 'ICE never active', transform=ax.transAxes,

@@ -60,7 +60,7 @@ The `render()` method produces a multi-panel performance plot showing speed, SoC
 
 Below is the provided training result image.
 
-![PPO example result](PPO_hycar.png)
+![PPO example result](images/PPO_hycar.png)
 
 ## Notes
 
